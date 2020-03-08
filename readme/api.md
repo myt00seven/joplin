@@ -54,6 +54,10 @@ To get the IDs only of all the tags:
 
 	curl http://localhost:41184/tags?fields=id
 
+# Error handling
+
+In case of an error, an HTTP status code >= 400 will be returned along with a JSON object that provides more info about the error. The JSON object is in the format `{ "error": "description of error" }`.
+
 # About the property types
 
 * Text is UTF-8.
@@ -63,6 +67,38 @@ To get the IDs only of all the tags:
 # Testing if the service is available
 
 Call **GET /ping** to check if the service is available. It should return "JoplinClipperServer" if it works.
+
+# Searching
+
+Call **GET /search?query=YOUR_QUERY** to search for notes. This end-point supports the `field` parameter which is recommended to use so that you only get the data that you need. The query syntax is as described in the main documentation: https://joplinapp.org/#searching
+
+To retrieve non-notes items, such as notebooks or tags, add a `type` parameter and set it to the required [item type name](#item-type-id). In that case, full text search will not be used - instead it will be a simple case-insensitive search. You can also use `*` as a wildcard. This is convenient for example to retrieve notebooks or tags by title.
+
+For example, to retrieve the notebook named `recipes`: **GET /search?query=recipes&type=folder**
+
+To retrieve all the tags that start with `project-`: **GET /search?query=project-*&type=tag**
+
+# Item type IDs
+
+Item type IDs might be refered to in certain object you will retrieve from the API. This is the correspondance between name and ID:
+
+Name | Value
+---- | -----
+note | 1   
+folder | 2   
+setting | 3   
+resource | 4   
+tag | 5   
+note_tag | 6   
+search | 7   
+alarm | 8   
+master_key | 9   
+item_change | 10   
+note_resource | 11   
+resource_local_state | 12   
+revision | 13   
+migration | 14   
+smart_filter | 15   
 
 # Notes
 
@@ -93,11 +129,12 @@ user_created_time | int | When the note was created. It may differ from created_
 user_updated_time | int | When the note was last updated. It may differ from updated_time as it can be manually set by the user.
 encryption_cipher_text | text |    
 encryption_applied | int |    
+markup_language | int |    
+is_shared | int |    
 body_html | text | Note body, in HTML format
 base_url | text | If `body_html` is provided and contains relative URLs, provide the `base_url` parameter too so that all the URLs can be converted to absolute ones. The base URL is basically where the HTML was fetched from, minus the query (everything after the '?'). For example if the original page was `https://stackoverflow.com/search?q=%5Bjava%5D+test`, the base URL is `https://stackoverflow.com/search`.
 image_data_url | text | An image to attach to the note, in [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs) format.
 crop_rect | text | If an image is provided, you can also specify an optional rectangle that will be used to crop the image. In format `{ x: x, y: y, width: width, height: height }`
-tags | text | Comma-separated list of tags. eg. `tag1,tag2`.
 
 ## GET /notes
 
@@ -110,6 +147,10 @@ Gets note with ID :id
 ## GET /notes/:id/tags
 
 Gets all the tags attached to this note.
+
+## GET /notes/:id/resources
+
+Gets all the resources attached to this note.
 
 ## POST /notes
 
@@ -162,6 +203,7 @@ user_updated_time | int | When the folder was last updated. It may differ from u
 encryption_cipher_text | text |    
 encryption_applied | int |    
 parent_id | text |    
+is_shared | int |    
 
 ## GET /folders
 
@@ -207,6 +249,8 @@ file_extension | text |
 encryption_cipher_text | text |    
 encryption_applied | int |    
 encryption_blob_encrypted | int |    
+size | int |    
+is_shared | int |    
 
 ## GET /resources
 
@@ -252,6 +296,7 @@ user_created_time | int | When the tag was created. It may differ from created_t
 user_updated_time | int | When the tag was last updated. It may differ from updated_time as it can be manually set by the user.
 encryption_cipher_text | text |    
 encryption_applied | int |    
+is_shared | int |    
 
 ## GET /tags
 
@@ -284,4 +329,3 @@ Deletes the tag with ID :id
 ## DELETE /tags/:id/notes/:note_id
 
 Remove the tag from the note.
-

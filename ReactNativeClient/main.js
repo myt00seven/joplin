@@ -6,17 +6,16 @@
 
 // So there's basically still a one way flux: React => SQLite => Redux => React
 
-
-// To disable warnings internal to React Native for componentWillMount and
-// componentWillReceiveProps. Should be fixed at some point and at that
-// time this code could be removed.
-// https://github.com/facebook/react-native/issues/18165#issuecomment-369907978
-// require("ReactFeatureFlags").warnAboutDeprecatedLifecycles = false;
-
-
 // console.disableYellowBox = true
 
-const { AppRegistry } = require('react-native');
+import { YellowBox, AppRegistry } from 'react-native';
+YellowBox.ignoreWarnings([
+	'Require cycle: node_modules/react-native-',
+	'Require cycle: node_modules/rn-fetch-blob',
+	'Warning: componentWillReceiveProps has been renamed',
+	'Warning: componentWillUpdate has been renamed',
+	'Warning: componentWillMount has been renamed',
+]);
 const { Root } = require('./root.js');
 
 function main() {

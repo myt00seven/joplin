@@ -6,19 +6,16 @@ const BaseModel = require('lib/BaseModel.js');
 const { time } = require('lib/time-utils.js');
 
 class Command extends BaseCommand {
-
 	usage() {
 		return 'tag <tag-command> [tag] [note]';
 	}
 
 	description() {
-		return _('<tag-command> can be "add", "remove" or "list" to assign or remove [tag] from [note], or to list the notes associated with [tag]. The command `tag list` can be used to list all the tags (use -l for long option).');
+		return _('<tag-command> can be "add", "remove", "list", or "notetags" to assign or remove [tag] from [note], to list notes associated with [tag], or to list tags associated with [note]. The command `tag list` can be used to list all the tags (use -l for long option).');
 	}
 
 	options() {
-		return [
-			['-l, --long', _('Use long list format. Format is ID, NOTE_COUNT (for notebook), DATE, TODO_CHECKED (for to-dos), TITLE')],
-		];
+		return [['-l, --long', _('Use long list format. Format is ID, NOTE_COUNT (for notebook), DATE, TODO_CHECKED (for to-dos), TITLE')]];
 	}
 
 	async action(args) {
@@ -50,7 +47,7 @@ class Command extends BaseCommand {
 		} else if (command == 'list') {
 			if (tag) {
 				let notes = await Tag.notes(tag.id);
-				notes.map((note) => {
+				notes.map(note => {
 					let line = '';
 					if (options.long) {
 						line += BaseModel.shortId(note.id);
@@ -61,7 +58,7 @@ class Command extends BaseCommand {
 					if (note.is_todo) {
 						line += '[';
 						if (note.todo_completed) {
-						   line += 'X';
+							line += 'X';
 						} else {
 							line += ' ';
 						}
@@ -74,13 +71,25 @@ class Command extends BaseCommand {
 				});
 			} else {
 				let tags = await Tag.all();
-				tags.map((tag) => { this.stdout(tag.title); });
+				tags.map(tag => {
+					this.stdout(tag.title);
+				});
+			}
+		} else if (command == 'notetags') {
+			if (args.tag) {
+				const note = await app().loadItem(BaseModel.TYPE_NOTE, args.tag);
+				if (!note) throw new Error(_('Cannot find "%s".', args.tag));
+				const tags = await Tag.tagsByNoteId(note.id);
+				tags.map(tag => {
+					this.stdout(tag.title);
+				});
+			} else {
+				throw new Error(_('Cannot find "%s".', ''));
 			}
 		} else {
 			throw new Error(_('Invalid command: "%s"', command));
 		}
 	}
-
 }
 
 module.exports = Command;

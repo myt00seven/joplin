@@ -10,30 +10,34 @@ reg.syncTargets_ = {};
 
 reg.logger = () => {
 	if (!reg.logger_) {
-		//console.warn('Calling logger before it is initialized');
+		// console.warn('Calling logger before it is initialized');
 		return new Logger();
 	}
 
 	return reg.logger_;
-}
+};
 
-reg.setLogger = (l) => {
+reg.setLogger = l => {
 	reg.logger_ = l;
-}
+};
 
-reg.setShowErrorMessageBoxHandler = (v) => {
+reg.setShowErrorMessageBoxHandler = v => {
 	reg.showErrorMessageBoxHandler_ = v;
-}
+};
 
-reg.showErrorMessageBox = (message) => {
+reg.showErrorMessageBox = message => {
 	if (!reg.showErrorMessageBoxHandler_) return;
 	reg.showErrorMessageBoxHandler_(message);
-}
+};
 
 reg.resetSyncTarget = (syncTargetId = null) => {
 	if (syncTargetId === null) syncTargetId = Setting.value('sync.target');
 	delete reg.syncTargets_[syncTargetId];
-}
+};
+
+reg.syncTargetNextcloud = () => {
+	return reg.syncTarget(SyncTargetRegistry.nameToId('nextcloud'));
+};
 
 reg.syncTarget = (syncTargetId = null) => {
 	if (syncTargetId === null) syncTargetId = Setting.value('sync.target');
@@ -46,14 +50,14 @@ reg.syncTarget = (syncTargetId = null) => {
 	target.setLogger(reg.logger());
 	reg.syncTargets_[syncTargetId] = target;
 	return target;
-}
+};
 
-reg.scheduleSync = async (delay = null, syncOptions = null) => {
+reg.scheduleSync_ = async (delay = null, syncOptions = null) => {
 	if (delay === null) delay = 1000 * 10;
 	if (syncOptions === null) syncOptions = {};
 
 	let promiseResolve = null;
-	const promise = new Promise((resolve, reject) => {
+	const promise = new Promise((resolve) => {
 		promiseResolve = resolve;
 	});
 
@@ -64,10 +68,10 @@ reg.scheduleSync = async (delay = null, syncOptions = null) => {
 
 	reg.logger().info('Scheduling sync operation...');
 
-	// if (Setting.value("env") === "dev" && delay !== 0) {
-	// 	reg.logger().info("Schedule sync DISABLED!!!");
-	// 	return;
-	// }
+	if (Setting.value('env') === 'dev' && delay !== 0) {
+		reg.logger().info('Schedule sync DISABLED!!!');
+		return;
+	}
 
 	const timeoutCallback = async () => {
 		reg.scheduleSyncId_ = null;
@@ -75,7 +79,7 @@ reg.scheduleSync = async (delay = null, syncOptions = null) => {
 
 		const syncTargetId = Setting.value('sync.target');
 
-		if (!await reg.syncTarget(syncTargetId).isAuthenticated()) {
+		if (!(await reg.syncTarget(syncTargetId).isAuthenticated())) {
 			reg.logger().info('Synchroniser is missing credentials - manual sync required to authenticate.');
 			promiseResolve();
 			return;
@@ -84,7 +88,7 @@ reg.scheduleSync = async (delay = null, syncOptions = null) => {
 		try {
 			const sync = await reg.syncTarget(syncTargetId).synchronizer();
 
-			const contextKey = 'sync.' + syncTargetId + '.context';
+			const contextKey = `sync.${syncTargetId}.context`;
 			let context = Setting.value(contextKey);
 			try {
 				context = context ? JSON.parse(context) : {};
@@ -92,18 +96,18 @@ reg.scheduleSync = async (delay = null, syncOptions = null) => {
 				// Clearing the context is inefficient since it means all items are going to be re-downloaded
 				// however it won't result in duplicate items since the synchroniser is going to compare each
 				// item to the current state.
-				reg.logger().warn('Could not parse JSON sync context ' + contextKey + ':', context);
+				reg.logger().warn(`Could not parse JSON sync context ${contextKey}:`, context);
 				reg.logger().info('Clearing context and starting from scratch');
 				context = null;
 			}
 
 			try {
-				reg.logger().info("Starting scheduled sync");
+				reg.logger().info('Starting scheduled sync');
 				const options = Object.assign({}, syncOptions, { context: context });
 				if (!options.saveContextHandler) {
-					options.saveContextHandler = (newContext) => {
+					options.saveContextHandler = newContext => {
 						Setting.setValue(contextKey, JSON.stringify(newContext));
-					}
+					};
 				}
 				const newContext = await sync.start(options);
 				Setting.setValue(contextKey, JSON.stringify(newContext));
@@ -146,7 +150,16 @@ reg.scheduleSync = async (delay = null, syncOptions = null) => {
 	}
 
 	return promise;
-}
+};
+
+reg.scheduleSync = async (delay = null, syncOptions = null) => {
+	reg.syncCalls_.push(true);
+	try {
+		await reg.scheduleSync_(delay, syncOptions);
+	} finally {
+		reg.syncCalls_.pop();
+	}
+};
 
 reg.setupRecurrentSync = () => {
 	if (reg.recurrentSyncId_) {
@@ -157,7 +170,7 @@ reg.setupRecurrentSync = () => {
 	if (!Setting.value('sync.interval')) {
 		reg.logger().debug('Recurrent sync is disabled');
 	} else {
-		reg.logger().debug('Setting up recurrent sync with interval ' + Setting.value('sync.interval'));
+		reg.logger().debug(`Setting up recurrent sync with interval ${Setting.value('sync.interval')}`);
 
 		if (Setting.value('env') === 'dev') {
 			reg.logger().info('Recurrent sync operation DISABLED!!!');
@@ -169,14 +182,31 @@ reg.setupRecurrentSync = () => {
 			reg.scheduleSync(0);
 		}, 1000 * Setting.value('sync.interval'));
 	}
-}
+};
 
-reg.setDb = (v) => {
+reg.setDb = v => {
 	reg.db_ = v;
-}
+};
 
 reg.db = () => {
 	return reg.db_;
-}
+};
+
+reg.cancelTimers = async () => {
+	if (this.recurrentSyncId_) {
+		clearTimeout(this.recurrentSyncId_);
+		this.recurrentSyncId_ = null;
+	}
+	return new Promise((resolve) => {
+		const iid = setInterval(() => {
+			if (!reg.syncCalls_.length) {
+				clearInterval(iid);
+				resolve();
+			}
+		}, 100);
+	});
+};
+
+reg.syncCalls_ = [];
 
 module.exports = { reg };

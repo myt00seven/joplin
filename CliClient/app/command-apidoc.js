@@ -1,19 +1,12 @@
 const { BaseCommand } = require('./base-command.js');
-const { _ } = require('lib/locale.js');
-const { cliUtils } = require('./cli-utils.js');
-const EncryptionService = require('lib/services/EncryptionService');
-const DecryptionWorker = require('lib/services/DecryptionWorker');
-const MasterKey = require('lib/models/MasterKey');
 const BaseItem = require('lib/models/BaseItem');
 const BaseModel = require('lib/BaseModel');
-const Setting = require('lib/models/Setting.js');
 const { toTitleCase } = require('lib/string-utils.js');
 const { reg } = require('lib/registry.js');
 const markdownUtils = require('lib/markdownUtils');
 const { Database } = require('lib/database.js');
 
 class Command extends BaseCommand {
-
 	usage() {
 		return 'apidoc';
 	}
@@ -22,19 +15,27 @@ class Command extends BaseCommand {
 		return 'Build the API doc';
 	}
 
-	createPropertiesTable(tableFields) {
-  		const headers = [
-  			{ name: 'name', label: 'Name' },
-  			{ name: 'type', label: 'Type', filter: (value) => {
-  				return Database.enumName('fieldType', value);
-  			}},
-  			{ name: 'description', label: 'Description' },
-  		];
-		
-		return markdownUtils.createMarkdownTable(headers, tableFields); 
+	enabled() {
+		return false;
 	}
 
-	async action(args) {
+	createPropertiesTable(tableFields) {
+		const headers = [
+			{ name: 'name', label: 'Name' },
+			{
+				name: 'type',
+				label: 'Type',
+				filter: value => {
+					return Database.enumName('fieldType', value);
+				},
+			},
+			{ name: 'description', label: 'Description' },
+		];
+
+		return markdownUtils.createMarkdownTable(headers, tableFields);
+	}
+
+	async action() {
 		const models = [
 			{
 				type: BaseModel.TYPE_NOTE,
@@ -70,8 +71,8 @@ class Command extends BaseCommand {
 		lines.push('}');
 		lines.push('```');
 		lines.push('');
-		
-		lines.push('# Authorisation')
+
+		lines.push('# Authorisation');
 		lines.push('');
 		lines.push('To prevent unauthorised applications from accessing the API, the calls must be authentified. To do so, you must provide a token as a query parameter for each API call. You can get this token from the Joplin desktop application, on the Web Clipper Options screen.');
 		lines.push('');
@@ -113,6 +114,11 @@ class Command extends BaseCommand {
 		lines.push('\tcurl http://localhost:41184/tags?fields=id');
 		lines.push('');
 
+		lines.push('# Error handling');
+		lines.push('');
+		lines.push('In case of an error, an HTTP status code >= 400 will be returned along with a JSON object that provides more info about the error. The JSON object is in the format `{ "error": "description of error" }`.');
+		lines.push('');
+
 		lines.push('# About the property types');
 		lines.push('');
 		lines.push('* Text is UTF-8.');
@@ -123,6 +129,29 @@ class Command extends BaseCommand {
 		lines.push('# Testing if the service is available');
 		lines.push('');
 		lines.push('Call **GET /ping** to check if the service is available. It should return "JoplinClipperServer" if it works.');
+		lines.push('');
+
+		lines.push('# Searching');
+		lines.push('');
+		lines.push('Call **GET /search?query=YOUR_QUERY** to search for notes. This end-point supports the `field` parameter which is recommended to use so that you only get the data that you need. The query syntax is as described in the main documentation: https://joplinapp.org/#searching');
+		lines.push('');
+		lines.push('To retrieve non-notes items, such as notebooks or tags, add a `type` parameter and set it to the required [item type name](#item-type-id). In that case, full text search will not be used - instead it will be a simple case-insensitive search. You can also use `*` as a wildcard. This is convenient for example to retrieve notebooks or tags by title.');
+		lines.push('');
+		lines.push('For example, to retrieve the notebook named `recipes`: **GET /search?query=recipes&type=folder**');
+		lines.push('');
+		lines.push('To retrieve all the tags that start with `project-`: **GET /search?query=project-*&type=tag**');
+		lines.push('');
+
+		lines.push('# Item type IDs');
+		lines.push('');
+		lines.push('Item type IDs might be refered to in certain object you will retrieve from the API. This is the correspondance between name and ID:');
+		lines.push('');
+		lines.push('Name | Value');
+		lines.push('---- | -----');
+		for (const t of BaseModel.typeEnum_) {
+			const value = t[1];
+			lines.push(`${BaseModel.modelTypeToName(value)} | ${value}   `);
+		}
 		lines.push('');
 
 		for (let i = 0; i < models.length; i++) {
@@ -154,14 +183,14 @@ class Command extends BaseCommand {
 					type: Database.enumId('fieldType', 'text'),
 					description: 'If an image is provided, you can also specify an optional rectangle that will be used to crop the image. In format `{ x: x, y: y, width: width, height: height }`',
 				});
-				tableFields.push({
-					name: 'tags',
-					type: Database.enumId('fieldType', 'text'),
-					description: 'Comma-separated list of tags. eg. `tag1,tag2`.',
-				});
+				// tableFields.push({
+				// 	name: 'tags',
+				// 	type: Database.enumId('fieldType', 'text'),
+				// 	description: 'Comma-separated list of tags. eg. `tag1,tag2`.',
+				// });
 			}
 
-			lines.push('# ' + toTitleCase(tableName));
+			lines.push(`# ${toTitleCase(tableName)}`);
 			lines.push('');
 
 			if (model.type === BaseModel.TYPE_FOLDER) {
@@ -174,9 +203,9 @@ class Command extends BaseCommand {
 			lines.push(this.createPropertiesTable(tableFields));
 			lines.push('');
 
-			lines.push('## GET /' + tableName);
+			lines.push(`## GET /${tableName}`);
 			lines.push('');
-			lines.push('Gets all ' + tableName);
+			lines.push(`Gets all ${tableName}`);
 			lines.push('');
 
 			if (model.type === BaseModel.TYPE_FOLDER) {
@@ -184,9 +213,9 @@ class Command extends BaseCommand {
 				lines.push('');
 			}
 
-			lines.push('## GET /' + tableName + '/:id');
+			lines.push(`## GET /${tableName}/:id`);
 			lines.push('');
-			lines.push('Gets ' + singular + ' with ID :id');
+			lines.push(`Gets ${singular} with ID :id`);
 			lines.push('');
 
 			if (model.type === BaseModel.TYPE_TAG) {
@@ -200,6 +229,11 @@ class Command extends BaseCommand {
 				lines.push('## GET /notes/:id/tags');
 				lines.push('');
 				lines.push('Gets all the tags attached to this note.');
+				lines.push('');
+
+				lines.push('## GET /notes/:id/resources');
+				lines.push('');
+				lines.push('Gets all the resources attached to this note.');
 				lines.push('');
 			}
 
@@ -217,9 +251,9 @@ class Command extends BaseCommand {
 				lines.push('');
 			}
 
-			lines.push('## POST /' + tableName);
+			lines.push(`## POST /${tableName}`);
 			lines.push('');
-			lines.push('Creates a new ' + singular);
+			lines.push(`Creates a new ${singular}`);
 			lines.push('');
 
 			if (model.type === BaseModel.TYPE_RESOURCE) {
@@ -263,14 +297,14 @@ class Command extends BaseCommand {
 				lines.push('');
 			}
 
-			lines.push('## PUT /' + tableName + '/:id');
+			lines.push(`## PUT /${tableName}/:id`);
 			lines.push('');
-			lines.push('Sets the properties of the ' + singular + ' with ID :id');
+			lines.push(`Sets the properties of the ${singular} with ID :id`);
 			lines.push('');
 
-			lines.push('## DELETE /' + tableName + '/:id');
+			lines.push(`## DELETE /${tableName}/:id`);
 			lines.push('');
-			lines.push('Deletes the ' + singular + ' with ID :id');
+			lines.push(`Deletes the ${singular} with ID :id`);
 			lines.push('');
 
 			if (model.type === BaseModel.TYPE_TAG) {
@@ -283,7 +317,6 @@ class Command extends BaseCommand {
 
 		this.stdout(lines.join('\n'));
 	}
-
 }
 
 module.exports = Command;
